@@ -1,0 +1,63 @@
+name: experiment 2 baseline change aware testing
+on: push
+jobs:
+  javadoc:
+    strategy:
+      matrix:
+        java: ['11']
+    runs-on: [self-hosted, energy-measurement]
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4.5.0
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+      - name: Javadoc
+        run: ant clean javadoc -buildfile build.xml
+  rat:
+    strategy:
+      matrix:
+        java: ['11']
+    runs-on: [self-hosted, energy-measurement]
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4.5.0
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+      - name: Run Apache Rat
+        run: ant clean run-rat -buildfile build.xml
+      - name: Cache unknown licenses
+        run: echo "UNKNOWN_LICENSES=$(sed -n 18p build/apache-rat-report.txt)" >> $GITHUB_ENV
+      - name: Versions
+        run: echo $UNKNOWN_LICENSES
+      - name: Fail if any unknown licenses
+        if: ${{ env.UNKNOWN_LICENSES != '0 Unknown Licenses' }}
+        run: exit 1
+  tests:
+    strategy:
+      matrix:
+        java: ['11']
+    runs-on: [self-hosted, energy-measurement]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4.5.0
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+      # BASELINE: always run full test suite
+      - name: test all (baseline)
+        run: ant -Dfile.encoding=UTF-8 -Dtests.failed.ignore=true clean test -buildfile build.xml
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-test-results-baseline
+          path: |
+            build/test/*.xml
+            build/test/*.txt
+          retention-days: 1
